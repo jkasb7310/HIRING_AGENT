@@ -1,0 +1,20 @@
+Priya Sharma
+Mumbai, India · priya.sharma@example.com · linkedin.com/in/priya-sharma-demo
+
+EXPERIENCE
+
+Senior Software Engineer, Razorpay
+Jan 2022 – Present
+• Built the UPI payments reconciliation service handling 2M transactions a day
+• Led a team of 6 engineers on the payouts platform
+
+Software Engineer at Freshworks | Jul 2019 - Dec 2021
+• Built REST APIs in Go and Python for the billing system
+• Moved batch jobs to Kafka
+
+EDUCATION
+
+IIT Bombay, B.Tech in Computer Science, 2015 - 2019
+
+SKILLS
+Go, Python, Kafka, PostgreSQL, Payments, Distributed Systems
