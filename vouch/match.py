@@ -60,12 +60,18 @@ def school_sim(a, b):
 
 
 def name_sim(a, b):
+    """Token-wise: every part of the shorter name must match a part of the other (initials allowed).
+    The weakest part decides, so 'David Hsu' vs 'David Hou' scores low."""
     ta, tb = tokens(a), tokens(b)
     if not ta or not tb:
         return 0.0
-    if set(ta) == set(tb):
-        return 1.0
-    return max(sim(" ".join(ta), " ".join(tb)), len(set(ta) & set(tb)) / max(len(ta), len(tb)))
+    short, long_ = (ta, tb) if len(ta) <= len(tb) else (tb, ta)
+    worst = 1.0
+    for t in short:
+        best = max((1.0 if t == u else 0.9 if (len(t) == 1 and u.startswith(t)) or (len(u) == 1 and t.startswith(u))
+                    else sim(t, u)) for u in long_)
+        worst = min(worst, best)
+    return worst
 
 
 # --- dates -----------------------------------------------------------------

@@ -9,7 +9,22 @@ import requests
 
 BASE = "https://api.crustdata.com"
 API_VERSION = "2025-11-01"
-CACHE_DIR = Path(os.environ.get("VOUCH_CACHE", Path(__file__).resolve().parent.parent / ".cache"))
+ROOT = Path(__file__).resolve().parent.parent
+CACHE_DIR = Path(os.environ.get("VOUCH_CACHE", ROOT / ".cache"))
+
+
+def load_env(path=ROOT / ".env"):
+    """Read KEY=value lines from .env into the environment (existing variables win)."""
+    if not path.exists():
+        return
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip().removeprefix("export ").strip(), v.strip().strip("'\""))
+
+
+load_env()
 
 
 class CrustError(Exception):
@@ -18,7 +33,7 @@ class CrustError(Exception):
 
 class Crust:
     def __init__(self, key=None, retries=4, timeout=40):
-        self.key = key or os.environ.get("CRUSTDATA_API_KEY")
+        self.key = key or os.environ.get("CRUSTDATA_API_KEY") or os.environ.get("API_KEY")
         if not self.key:
             raise CrustError("CRUSTDATA_API_KEY is not set")
         self.retries = retries

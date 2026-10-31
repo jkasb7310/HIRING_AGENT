@@ -17,9 +17,13 @@ def variants(claims):
     yield "honest", {"VERIFIED"}, copy.deepcopy(claims)
     jobs = claims.get("experience") or []
     if jobs:
-        c = copy.deepcopy(claims)
-        c["experience"][0]["title"] = "Head of Engineering"
-        yield "title inflated", {"FLAGGED", "NEEDS REVIEW"}, c
+        # inflate the most junior role so the lie is always a step up, never a step down
+        level = lambda j: M.seniority(j.get("title"))
+        idx = min(range(len(jobs)), key=lambda i: level(jobs[i]) if level(jobs[i]) is not None else 9)
+        if (level(jobs[idx]) or 0) < 5:
+            c = copy.deepcopy(claims)
+            c["experience"][idx]["title"] = "Head of Engineering"
+            yield "title inflated", {"FLAGGED", "NEEDS REVIEW"}, c
 
         c = copy.deepcopy(claims)
         c["experience"][-1]["start"] = _shift(c["experience"][-1].get("start"), -18)

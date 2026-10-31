@@ -83,7 +83,7 @@ def resolve(crust, claims):
         person = crust.enrich_person(url)
         if person:
             s, parts = score_candidate(claims, person)
-            ok = parts["name"] >= 0.6
+            ok = parts["name"] >= 0.85
             return (person if ok else None), {
                 "method": "profile URL on résumé (Person Enrich)", "url": url, **parts,
                 "status": "matched" if ok else "mismatch",
@@ -113,8 +113,11 @@ def resolve(crust, claims):
             if pid not in seen:
                 seen.add(pid)
                 candidates.append(p)
-        if candidates and kind != "name":
-            break  # an employer-constrained hit is strong enough; skip the broad name search
+        # Keep searching: a claimed employer can itself be the lie, so an employer-constrained hit
+        # may be a different person. Stop early only on an exact name with 2+ employers matched.
+        if any(score_candidate(claims, p)[1]["name"] == 1.0 and score_candidate(claims, p)[1]["employers_matched"] >= 2
+               for p in candidates):
+            break
 
     if not candidates:
         return None, {"method": "Person Search (name + employers)", "status": "not_found",
@@ -124,7 +127,7 @@ def resolve(crust, claims):
     runner = scored[1][0][0] if len(scored) > 1 else 0
     info = {"method": "Person Search (name + employers)", "candidates": len(candidates), **best_parts,
             "url": _profile_url(best)}
-    if best_parts["name"] < 0.6 or (best_parts["employers_matched"] == 0 and best_parts["schools_matched"] == 0):
+    if best_parts["name"] < 0.85 or (best_parts["employers_matched"] == 0 and best_parts["schools_matched"] == 0):
         info.update(status="ambiguous" if len(candidates) > 1 else "weak",
                     note=f"{len(candidates)} people named '{name}', none share an employer or school with the résumé")
         return None, info
@@ -150,13 +153,18 @@ def _overlap(a, b, now):
     return max(0, min(e1, e2) - max(s1, s2))
 
 
-def _headcount_at(company, month):
+def _peak_headcount(company, start, end):
+    """Largest headcount during [start, end]; the candidate gets the benefit of the doubt on growth."""
     ts = ((company or {}).get("headcount") or {}).get("timeseries") or []
     pts = [(M.to_month(p.get("date")), p.get("employee_count")) for p in ts if p.get("employee_count")]
     pts = [(m, c) for m, c in pts if isinstance(m, int)]
     if not pts:
         return None, None
-    m, c = min(pts, key=lambda x: abs(x[0] - month))
+    inside = [(m, c) for m, c in pts if start <= m <= end]
+    if inside:
+        m, c = max(inside, key=lambda x: x[1])
+    else:
+        m, c = min(pts, key=lambda x: min(abs(x[0] - start), abs(x[0] - end)))
     return c, m
 
 
@@ -233,13 +241,14 @@ def check_job(claim, record_jobs, now, crust, src):
                 csrc = f"Crustdata Company Enrich · company {cid} · headcount.timeseries"
             except CrustError:
                 company_rec = None
-        mid = cs if isinstance(cs, int) else now
+        start = cs if isinstance(cs, int) else now
+        end = ce if isinstance(ce, int) else now
         if company_rec:
-            hc, when = _headcount_at(company_rec, mid)
+            hc, when = _peak_headcount(company_rec, start, end)
         if hc is None and best.get("company_headcount_latest"):
             hc, when, csrc = best["company_headcount_latest"], None, f"{ref}.company_headcount_latest"
         if hc:
-            at = f" in {M.fmt_month(when)}" if when else " (latest)"
+            at = f" at its peak during the role ({M.fmt_month(when)})" if when else " (latest)"
             if team >= hc:
                 out.append(Finding(f"Led a team of {team}", CONTRADICTED,
                                    f"{best.get('name')} had {hc} employees{at}: a team of {team} is not possible.",

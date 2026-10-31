@@ -56,13 +56,23 @@ every lie must be caught.
 .venv/bin/python eval/run_eval.py samples/*.txt                # live Crustdata
 ```
 
-Offline: **8/8 cases pass**. The live results go in `eval/results.json`.
+Offline: **8/8 cases pass**. Live, on the public profile from Crustdata's docs: **7/7 pass** (the title
+test is skipped for a CEO, since there is nothing above that to inflate to). The live results go in `eval/results.json`.
+
+### What the live tests caught in our own code
+- **The wrong person with a similar name.** A doctored résumé claimed a job at Google; searching "David Hsu" at
+  Google returned *David Hou*, and our loose name match (0.89) accepted him. Fix: names now match token by token
+  (every part must match), and we collect candidates from every employer search plus a name-only search
+  before choosing. We no longer stop at the first hit, because the claimed employer may itself be the lie.
+- **Team size checked at the wrong time.** "Led 300 people" at Retool was flagged because we compared it with
+  headcount near the job's *start* (106). People grow teams during a job, so we now use the peak headcount
+  during the claimed tenure (473). It becomes a 🟡 warning, not a false accusation.
 
 ## How to run it
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-export CRUSTDATA_API_KEY=...          # app.crustdata.com → API Keys
+export CRUSTDATA_API_KEY=...          # app.crustdata.com → API Keys (or API_KEY=... in .env)
 export ANTHROPIC_API_KEY=...          # optional, for better résumé parsing
 .venv/bin/python -m vouch resume.pdf --role "Senior backend engineer, payments, Mumbai" --out report.html
 ```
