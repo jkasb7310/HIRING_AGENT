@@ -19,6 +19,7 @@ class Finding:
     detail: str
     source: str = ""
     severity: int = 0          # 0 info, 1 minor, 2 material, 3 serious
+    kind: str = ""             # "job_missing" when a paid job can't be found on the record
 
 
 @dataclass
@@ -171,7 +172,8 @@ def _peak_headcount(company, start, end):
 def check_job(claim, record_jobs, now, crust, src):
     out = []
     company, title = claim.get("company") or "?", claim.get("title") or "?"
-    label = f"{title} at {company}"
+    position = claim.get("kind") == "position"  # clubs, fests, TA roles: confirm if we can, never penalise
+    label = f"{'Position: ' if position else ''}{title} at {company}"
     cs, ce = _span(claim)
     best, best_sim = None, 0
     for j in record_jobs:
@@ -179,8 +181,14 @@ def check_job(claim, record_jobs, now, crust, src):
         if s > best_sim:
             best, best_sim = j, s
     if not best or best_sim < 0.75:
-        # Not on record. Is the claimed period filled by a different employer on record?
+        if position:
+            out.append(Finding(label, UNVERIFIED, f"Not on record (common for student roles).", src, 0))
+            return out, None
+        # Not on record. Is the claimed period filled by a different full-time employer on record?
+        # Student bodies and side roles (E-Cell, a fest) run alongside jobs, so they never count as a clash.
         clash = [j for j in record_jobs if j.get("employment_type") not in ("Internship", "Part-time")
+                 and not M.SCHOOLISH.search(j.get("name") or "")
+                 and (M.seniority(j.get("title")) or 2) >= 1
                  and _overlap((cs, ce), _span(j), now) >= 6]
         if clash and cs is not None:
             j = max(clash, key=lambda j: _overlap((cs, ce), _span(j), now))
@@ -188,8 +196,9 @@ def check_job(claim, record_jobs, now, crust, src):
                                f"Not on record. For that period ({M.fmt_month(cs)}–{M.fmt_month(ce)}) the record shows "
                                f"'{j.get('title')}' at {j.get('name')}.", f"{src} · {j['_ref']}", 2))
         else:
-            out.append(Finding(label, UNVERIFIED, f"No job at '{company}' on record, and no conflicting job then.",
-                               src, 1))
+            out.append(Finding(label, UNVERIFIED,
+                               f"No job at '{company}' on the public record, and no conflicting job then. "
+                               f"Ask for an offer letter or payslip.", src, 1, kind="job_missing"))
         return out, None
 
     ref = f"{src} · {best['_ref']}"
@@ -293,7 +302,8 @@ def check_education(claim, schools, src):
 def check_internal(claims, now):
     """Overlapping full-time roles on the résumé itself."""
     out = []
-    jobs = [j for j in claims.get("experience", []) if "intern" not in (j.get("title") or "").lower()]
+    jobs = [j for j in claims.get("experience", []) if "intern" not in (j.get("title") or "").lower()
+            and j.get("kind") != "position"]
     for i in range(len(jobs)):
         for k in range(i + 1, len(jobs)):
             ov = _overlap(_span(jobs[i]), _span(jobs[k]), now)
@@ -330,6 +340,7 @@ def decide(rep):
     serious = [f for f in contra if f.severity >= 3]
     material = [f for f in contra if f.severity >= 2]
     unver = [f for f in rep.findings if f.status == UNVERIFIED and f.severity >= 1]
+    missing_jobs = [f for f in unver if f.kind == "job_missing"]
     confirmed = [f for f in rep.findings if f.status == CONFIRMED]
     status = rep.identity.get("status")
     if status != "matched":
@@ -339,9 +350,11 @@ def decide(rep):
         rep.decision = "FLAGGED"
         rep.reason = f"{len(contra)} claim(s) contradicted by the record, " \
                      f"including: {(serious or material)[0].claim}."
-    elif material or len(unver) > max(1, len(confirmed) // 2):
+    elif material or missing_jobs or len(unver) > max(1, len(confirmed) // 2):
         rep.decision = "NEEDS REVIEW"
         rep.reason = (f"Contradiction to clarify: {material[0].claim}." if material else
+                      f"Not on the public record: {missing_jobs[0].claim}. Ask for an offer letter or payslip."
+                      if missing_jobs else
                       f"{len(unver)} claims could not be checked against the record.")
     else:
         rep.decision = "VERIFIED"

@@ -19,19 +19,36 @@ from vouch.crust import Crust  # noqa: E402
 
 
 def run_suite(crust, claims, role=None):
-    rows = []
-    for name, expected, c in variants(claims):
+    """Honest copies must not be flagged and rewording must not change the decision.
+    Each lie must add a contradiction the honest copy didn't have (or, for identity, fail to match)."""
+    rows, base, base_contra = [], None, set()
+    honest = verify.run(crust, claims, role=role)
+    on_record = {f.claim.removeprefix("Worked at ") for f in honest.findings
+                 if f.status == "confirmed" and f.claim.startswith("Worked at ")}
+    checkable = {i for i, e in enumerate(claims.get("experience", [])) if e.get("company") in on_record}
+    for name, expected, c in variants(claims, checkable):
         rep = verify.run(crust, c, role=role)
-        caught = [f.claim for f in rep.findings if f.status == "contradicted"]
-        rows.append({"case": name, "expected": "/".join(sorted(expected)), "got": rep.decision,
-                     "pass": rep.decision in expected, "evidence": caught[:2] or [rep.reason]})
+        contra = {f.claim for f in rep.findings if f.status == "contradicted"}
+        if name == "honest":
+            base, base_contra = rep.decision, contra
+            ok, want = rep.decision != "FLAGGED" and not contra, "not FLAGGED"
+        elif name.startswith("honest"):
+            ok, want = rep.decision == base, f"same ({base})"
+        elif name.startswith("identity"):
+            ok, want = rep.identity.get("status") != "matched" and rep.decision == "NEEDS REVIEW", "NEEDS REVIEW"
+        else:
+            new = contra - base_contra
+            ok, want = bool(new) and rep.decision in expected, "caught: " + "/".join(sorted(expected))
+        caught = sorted(contra - base_contra)
+        rows.append({"case": name, "expected": want, "got": rep.decision, "pass": ok,
+                     "evidence": caught[:2] or [rep.reason]})
     return rows
 
 
 def print_table(rows):
-    print(f"\n{'case':32} {'expected':24} {'got':14} ok")
+    print(f"\n{'case':32} {'expected':26} {'got':14} ok")
     for r in rows:
-        print(f"{r['case']:32} {r['expected']:24} {r['got']:14} {'✅' if r['pass'] else '❌'}  {r['evidence'][0][:70]}")
+        print(f"{r['case']:32} {r['expected'][:26]:26} {r['got']:14} {'✅' if r['pass'] else '❌'}  {r['evidence'][0][:70]}")
     passed = sum(r["pass"] for r in rows)
     print(f"\n{passed}/{len(rows)} cases passed")
 

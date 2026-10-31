@@ -17,6 +17,7 @@ def main(argv=None):
     ap.add_argument("resume", help="résumé file (.pdf, .txt, .md) or a claims .json")
     ap.add_argument("--role", help="the role brief, for the fit score")
     ap.add_argument("--profile", help="the candidate's profile URL, if not on the résumé")
+    ap.add_argument("--name", help="the candidate's name, if not on the résumé")
     ap.add_argument("--out", help="write the report here (.html, .md or .json)")
     ap.add_argument("--no-llm", action="store_true", help="use the heuristic parser even if ANTHROPIC_API_KEY is set")
     ap.add_argument("--claims-only", action="store_true", help="print the parsed claims and stop (no API calls)")
@@ -34,6 +35,8 @@ def main(argv=None):
         claims = parse.parse(text, use_llm=not args.no_llm)
     if args.profile:
         claims["profile_url"] = args.profile
+    if args.name:
+        claims["name"] = args.name
 
     if args.claims_only:
         print(json.dumps(claims, indent=2, ensure_ascii=False))

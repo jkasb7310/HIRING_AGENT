@@ -10,7 +10,9 @@ COMPANY_NOISE = {
     "technologies", "technology", "tech", "labs", "lab", "solutions", "software", "services", "india",
     "the", "group", "global", "systems", "plc", "gmbh", "ai", "hq",
 }
-SCHOOL_NOISE = {"the", "of", "university", "institute", "college", "school", "and", "&"}
+SCHOOLISH = re.compile(r"\b(iit|nit|iiit|bits|university|institute|college|school|e-?cell|club|society|"
+                       r"fest|committee|council|chapter|student|nss|ncc)\b", re.I)
+SCHOOL_NOISE ={"the", "of", "university", "institute", "college", "school", "and", "&"}
 SCHOOL_ALIASES = {
     "iit": "indian institute technology", "iitb": "indian institute technology bombay",
     "iisc": "indian institute science", "bits": "birla institute technology science",
@@ -93,7 +95,7 @@ def to_month(value):
     m = re.match(r"(\d{4})-(\d{1,2})", s)  # 2019-03, 2017-01-01T00:00:00+00:00
     if m:
         return int(m.group(1)) * 12 + int(m.group(2)) - 1
-    m = re.match(r"([a-z]{3})[a-z]*\.?\s*'?(\d{2,4})", s)  # Mar 2019, March 2019, Mar '19
+    m = re.match(r"([a-z]{3})[a-z]*\.?\s*['’`]?\s*(\d{2,4})", s)  # Mar 2019, March 2019, Mar '19, Dec’ 25
     if m and m.group(1) in MONTHS:
         y = int(m.group(2))
         y = y + 2000 if y < 100 else y
@@ -124,7 +126,8 @@ SENIORITY = [
     (5, r"\b(director|head of|head,|senior manager|sr\.? manager|general manager)\b|^head\b"),
     (4, r"\b(lead|staff|principal|manager|architect|em)\b"),
     (3, r"\b(senior|sr\.?|sde[- ]?(3|iii)|sde ?3|engineer (3|iii)|l5)\b"),
-    (2, r"\b(engineer|developer|analyst|scientist|consultant|designer|sde[- ]?(2|ii)|associate|specialist|programmer)\b"),
+    (2, r"\b(engineer|developer|analyst|scientist|consultant|designer|sde[- ]?(2|ii)|associate|specialist|programmer|"
+        r"coordinator|executive|officer|representative|member)\b"),
     (1, r"\b(junior|jr\.?|graduate|trainee|sde[- ]?(1|i)\b|engineer (1|i)\b|apprentice|fresher)\b"),
     (0, r"\b(intern|internship|student|research assistant)\b"),
 ]

@@ -56,8 +56,28 @@ every lie must be caught.
 .venv/bin/python eval/run_eval.py samples/*.txt                # live Crustdata
 ```
 
-Offline: **8/8 cases pass**. Live, on the public profile from Crustdata's docs: **7/7 pass** (the title
-test is skipped for a CEO, since there is nothing above that to inflate to). The live results go in `eval/results.json`.
+Lies are planted only in roles the record can actually check (the honest run confirmed that employer). A lie about
+a job that isn't on any record can't be caught by any checker, so Vouch sends those cases to review instead.
+
+| Candidate | Honest résumé | Lies caught |
+|---|---|---|
+| Stub record (offline) | VERIFIED | 6/6, plus rewording gives the same decision |
+| Real IIT Bombay graduate, résumé PDF (live) | NEEDS REVIEW: her internship isn't on her public profile, so ask for an offer letter | 5/5, plus rewording gives the same decision |
+| David Hsu, the public profile from Crustdata's docs (live) | VERIFIED | 5/5, plus rewording gives the same decision (title test skipped: nothing above CEO) |
+
+Results are saved to `eval/results.json`.
+
+### What real résumés taught us
+- **The LinkedIn link was hidden.** The résumé just says "LinkedIn"; the URL lives in the PDF's link annotations.
+  We now read those, so the identity check uses the exact profile instead of a name search.
+- **Templates break simple parsers.** The IIT Bombay template separates words with tabs, writes dates as `Dec’ 25`
+  with a curly apostrophe, and uses `Intern, Talent Acquisition | Company`. One résumé had no header (no name or
+  education) at all, so we added `--name` and stopped treating section headings as names.
+- **Positions of responsibility matter.** A student's public profile often lists only club roles (E-Cell, fests).
+  Vouch now checks them as supporting evidence but never holds them against the candidate. A fake job overlapping a
+  club role is *not* a contradiction, because students do both.
+- **A missing job is not a lie.** Short internships often never reach a public profile. Early versions called such
+  a résumé VERIFIED, which was too generous; Vouch now says NEEDS REVIEW and tells the recruiter exactly what to ask for.
 
 ### What the live tests caught in our own code
 - **The wrong person with a similar name.** A doctored résumé claimed a job at Google; searching "David Hsu" at
@@ -77,8 +97,9 @@ export ANTHROPIC_API_KEY=...          # optional, for better résumé parsing
 .venv/bin/python -m vouch resume.pdf --role "Senior backend engineer, payments, Mumbai" --out report.html
 ```
 
-Options: `--profile URL` (if it's not on the résumé), `--claims-only` (parse only, no API calls),
-`--no-llm`.
+Options: `--profile URL` and `--name` (if they're not on the résumé), `--claims-only` (parse only, no API calls),
+`--no-llm`. Résumé PDFs in `samples/` are git-ignored: we tested on real résumés with their owners' consent and
+don't publish them.
 
 ## How it is built
 
